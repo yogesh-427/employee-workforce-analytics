@@ -14,8 +14,7 @@ std::string envOr(const char* key, const std::string& fallback = "") {
 void listEmployees(mysqlx::Session& session) {
     auto result = session.sql(
         "SELECT employee_id, first_name, last_name, email, job_title "
-        "FROM employee_workforce_analytics.employees "
-        "ORDER BY employee_id"
+        "FROM employees ORDER BY employee_id"
     ).execute();
 
     std::cout << "\nEmployees\n";
@@ -43,7 +42,7 @@ void addEmployee(mysqlx::Session& session) {
 
     // Bound parameters avoid concatenating user data into the SQL statement.
     session.sql(
-        "INSERT INTO employee_workforce_analytics.employees "
+        "INSERT INTO employees "
         "(first_name, last_name, email, job_title, department_id, hire_date) "
         "VALUES (?, ?, ?, ?, ?, CURRENT_DATE())"
     ).bind(firstName, lastName, email, jobTitle, departmentId).execute();
@@ -56,6 +55,7 @@ int main() {
     const std::string host = envOr("DB_HOST", "127.0.0.1");
     const std::string user = envOr("DB_USER", "root");
     const std::string password = envOr("DB_PASSWORD");
+    const std::string schema = envOr("DB_NAME", "employee_workforce_analytics");
     const unsigned int port = static_cast<unsigned int>(
         std::stoi(envOr("DB_PORT", "33060"))
     );
@@ -65,8 +65,16 @@ int main() {
         return 1;
     }
 
+    // Database names are identifiers, so validate before adding one to SQL.
+    if (schema.empty() ||
+        schema.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_") != std::string::npos) {
+        std::cerr << "DB_NAME may contain only letters, numbers, and underscores.\n";
+        return 1;
+    }
+
     try {
         mysqlx::Session session(host, port, user, password);
+        session.sql("USE " + schema).execute();
 
         while (true) {
             std::cout << "\nEmployee Workforce Analytics\n"
